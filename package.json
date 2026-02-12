@@ -1,7 +1,7 @@
 {
   "name": "napcat-plugin-aichat",
   "plugin": "AI 聊天插件",
-  "version": "1.2.2",
+  "version": "1.2.3",
   "type": "module",
   "main": "index.mjs",
   "description": "NapCat 插件 - AI 聊天插件",
