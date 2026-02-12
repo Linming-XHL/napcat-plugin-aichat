@@ -366,6 +366,90 @@ export async function handleMessage(ctx: NapCatPluginContext, event: OB11Message
         const groupConfig = pluginState.config.groupConfigs[String(groupId)];
         if (groupConfig && groupConfig.aiEnabled === false) return;
 
+        // 检查是否是其他插件的命令（优先级低于其他插件）
+        // 如果消息以命令前缀开始，可能是其他插件的命令，直接返回
+        const prefix = pluginState.config.commandPrefix || '#cmd';
+        if (rawMessage.startsWith(prefix)) {
+            // 解析命令参数
+            const args = rawMessage.slice(prefix.length).trim().split(/\s+/);
+            const subCommand = args[0]?.toLowerCase() || '';
+
+            switch (subCommand) {
+                case 'help': {
+                    const helpText = [
+                        `[= 插件帮助 =]`,
+                        `${prefix} help - 显示帮助信息`,
+                        `${prefix} ping - 测试连通性`,
+                        `${prefix} status - 查看运行状态`,
+                        `${prefix} ai enable - 启用AI功能`,
+                        `${prefix} ai disable - 禁用AI功能`,
+                    ].join('\n');
+                    await sendReply(ctx, event, helpText);
+                    break;
+                }
+
+                case 'ping': {
+                    // 群消息检查 CD
+                    if (messageType === 'group' && groupId) {
+                        const remaining = getCooldownRemaining(groupId, 'ping');
+                        if (remaining > 0) {
+                            await sendReply(ctx, event, `请等待 ${remaining} 秒后再试`);
+                            return;
+                        }
+                    }
+
+                    await sendReply(ctx, event, 'pong!');
+                    if (messageType === 'group' && groupId) setCooldown(groupId, 'ping');
+                    pluginState.incrementProcessed();
+                    break;
+                }
+
+                case 'status': {
+                    const statusText = [
+                        `[= 插件状态 =]`,
+                        `运行时长: ${pluginState.getUptimeFormatted()}`,
+                        `今日处理: ${pluginState.stats.todayProcessed}`,
+                        `总计处理: ${pluginState.stats.processed}`,
+                    ].join('\n');
+                    await sendReply(ctx, event, statusText);
+                    break;
+                }
+
+                case 'ai': {
+                    // 处理AI相关命令
+                    const aiSubCommand = args[1]?.toLowerCase() || '';
+                    switch (aiSubCommand) {
+                        case 'enable':
+                        case 'disable': {
+                            // 检查权限
+                            if (!hasAIManagePermission(event)) {
+                                await sendReply(ctx, event, '你没有权限管理AI功能');
+                                return;
+                            }
+
+                            // 切换AI功能状态
+                            const groupIdStr = String(groupId);
+                            const newAiEnabled = aiSubCommand === 'enable';
+
+                            // 更新群配置并保存
+                            pluginState.updateGroupConfig(groupIdStr, { aiEnabled: newAiEnabled });
+
+                            // 发送回复
+                            await sendReply(ctx, event, `AI功能已${newAiEnabled ? '启用' : '禁用'}`);
+                            break;
+                        }
+                    }
+                    break;
+                }
+
+                default: {
+                    // 其他命令，可能是其他插件的，直接返回
+                    return;
+                }
+            }
+            return;
+        }
+
         // 检查是否@了机器人
         if (!isAtBot(event)) return;
 
@@ -385,88 +469,6 @@ export async function handleMessage(ctx: NapCatPluginContext, event: OB11Message
         // 发送回复
         await sendReply(ctx, event, aiResponse);
         pluginState.incrementProcessed();
-
-        // 检查命令前缀（保留原有命令功能）
-        const prefix = pluginState.config.commandPrefix || '#cmd';
-        if (!rawMessage.startsWith(prefix)) return;
-
-        // 解析命令参数
-        const args = rawMessage.slice(prefix.length).trim().split(/\s+/);
-        const subCommand = args[0]?.toLowerCase() || '';
-
-        switch (subCommand) {
-            case 'help': {
-                const helpText = [
-                    `[= 插件帮助 =]`,
-                    `${prefix} help - 显示帮助信息`,
-                    `${prefix} ping - 测试连通性`,
-                    `${prefix} status - 查看运行状态`,
-                    `${prefix} ai enable - 启用AI功能`,
-                    `${prefix} ai disable - 禁用AI功能`,
-                ].join('\n');
-                await sendReply(ctx, event, helpText);
-                break;
-            }
-
-            case 'ping': {
-                // 群消息检查 CD
-                if (messageType === 'group' && groupId) {
-                    const remaining = getCooldownRemaining(groupId, 'ping');
-                    if (remaining > 0) {
-                        await sendReply(ctx, event, `请等待 ${remaining} 秒后再试`);
-                        return;
-                    }
-                }
-
-                await sendReply(ctx, event, 'pong!');
-                if (messageType === 'group' && groupId) setCooldown(groupId, 'ping');
-                pluginState.incrementProcessed();
-                break;
-            }
-
-            case 'status': {
-                const statusText = [
-                    `[= 插件状态 =]`,
-                    `运行时长: ${pluginState.getUptimeFormatted()}`,
-                    `今日处理: ${pluginState.stats.todayProcessed}`,
-                    `总计处理: ${pluginState.stats.processed}`,
-                ].join('\n');
-                await sendReply(ctx, event, statusText);
-                break;
-            }
-
-            case 'ai': {
-                // 处理AI相关命令
-                const aiSubCommand = args[1]?.toLowerCase() || '';
-                switch (aiSubCommand) {
-                    case 'enable':
-                    case 'disable': {
-                        // 检查权限
-                        if (!hasAIManagePermission(event)) {
-                            await sendReply(ctx, event, '你没有权限管理AI功能');
-                            return;
-                        }
-
-                        // 切换AI功能状态
-                        const groupIdStr = String(groupId);
-                        const newAiEnabled = aiSubCommand === 'enable';
-
-                        // 更新群配置并保存
-                        pluginState.updateGroupConfig(groupIdStr, { aiEnabled: newAiEnabled });
-
-                        // 发送回复
-                        await sendReply(ctx, event, `AI功能已${newAiEnabled ? '启用' : '禁用'}`);
-                        break;
-                    }
-                }
-                break;
-            }
-
-            default: {
-                // 其他命令处理
-                break;
-            }
-        }
     } catch (error) {
         pluginState.logger.error('处理消息时出错:', error);
     }
