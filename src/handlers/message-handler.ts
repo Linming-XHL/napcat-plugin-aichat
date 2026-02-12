@@ -299,7 +299,7 @@ function extractQuestion(event: OB11Message): string {
  * 调用AI API获取回复
  */
 async function getAIResponse(question: string): Promise<string> {
-    const { aiApiUrl, aiApiKey, aiModel, aiSystemPrompt, aiContextLength } = pluginState.config;
+    const { aiApiUrl, aiApiKey, aiModel, aiSystemPrompt, aiContextLength, debug } = pluginState.config;
     
     if (!aiApiUrl || !aiApiKey) {
         pluginState.logger.error('AI API配置不完整: aiApiUrl=' + !!aiApiUrl + ', aiApiKey=' + !!aiApiKey);
@@ -307,7 +307,9 @@ async function getAIResponse(question: string): Promise<string> {
     }
     
     try {
-        pluginState.logger.debug('开始调用AI API:', { aiApiUrl, aiModel, aiContextLength });
+        if (debug) {
+            pluginState.logger.debug('开始调用AI API:', { aiApiUrl, aiModel, aiContextLength });
+        }
         
         const response = await fetch(aiApiUrl, {
             method: 'POST',
@@ -332,7 +334,9 @@ async function getAIResponse(question: string): Promise<string> {
             }),
         });
         
-        pluginState.logger.debug('AI API响应状态:', response.status);
+        if (debug) {
+            pluginState.logger.debug('AI API响应状态:', response.status);
+        }
         
         if (!response.ok) {
             const errorText = await response.text();
@@ -341,7 +345,10 @@ async function getAIResponse(question: string): Promise<string> {
         }
         
         const data = await response.json();
-        pluginState.logger.debug('AI API响应数据:', JSON.stringify(data));
+        
+        if (debug) {
+            pluginState.logger.debug('AI API响应数据:', JSON.stringify(data));
+        }
         
         if (data.error) {
             pluginState.logger.error('AI API返回错误:', data.error);
@@ -350,7 +357,9 @@ async function getAIResponse(question: string): Promise<string> {
         
         if (data.choices && data.choices.length > 0) {
             const reply = data.choices[0].message.content;
-            pluginState.logger.debug('AI回复成功，长度:', reply.length);
+            if (debug) {
+                pluginState.logger.debug('AI回复成功，长度:', reply.length);
+            }
             return reply;
         }
         
