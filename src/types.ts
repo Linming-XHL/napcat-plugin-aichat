@@ -36,7 +36,7 @@ export interface PluginConfig {
     masterQqs: string[];
     /** AI 系统提示词 */
     aiSystemPrompt: string;
-    /** 上下文长度（KB），范围1-128 */
+    /** 上下文消息条数，范围2-30 */
     aiContextLength: number;
 }
 

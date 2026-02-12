@@ -50,8 +50,8 @@ function sanitizeConfig(raw: unknown): PluginConfig {
     // AI 提示词配置清洗
     if (typeof raw.aiSystemPrompt === 'string') out.aiSystemPrompt = raw.aiSystemPrompt;
     if (typeof raw.aiContextLength === 'number') {
-        // 限制上下文长度范围1-128
-        out.aiContextLength = Math.max(1, Math.min(128, raw.aiContextLength));
+        // 限制上下文消息条数范围2-30
+        out.aiContextLength = Math.max(2, Math.min(30, raw.aiContextLength));
     }
 
     // 群配置清洗

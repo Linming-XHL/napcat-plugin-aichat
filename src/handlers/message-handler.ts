@@ -94,6 +94,34 @@ function checkRateLimit(groupId: string): boolean {
     return false;
 }
 
+// ==================== 消息历史管理 ====================
+
+/** 消息历史记录 key: `${groupId}`, value: 消息数组 */
+const messageHistoryMap = new Map<string, Array<{ role: string; content: string }>>();
+
+/**
+ * 获取指定群的消息历史
+ */
+function getMessageHistory(groupId: string): Array<{ role: string; content: string }> {
+    return messageHistoryMap.get(groupId) || [];
+}
+
+/**
+ * 添加消息到历史记录
+ */
+function addMessageToHistory(groupId: string, role: string, content: string): void {
+    const history = getMessageHistory(groupId);
+    history.push({ role, content });
+    messageHistoryMap.set(groupId, history);
+}
+
+/**
+ * 清空指定群的消息历史
+ */
+function clearMessageHistory(groupId: string): void {
+    messageHistoryMap.delete(groupId);
+}
+
 // ==================== 消息发送工具 ====================
 
 /**
@@ -298,7 +326,7 @@ function extractQuestion(event: OB11Message): string {
 /**
  * 调用AI API获取回复
  */
-async function getAIResponse(question: string): Promise<string> {
+async function getAIResponse(groupId: string, question: string): Promise<string> {
     const { aiApiUrl, aiApiKey, aiModel, aiSystemPrompt, aiContextLength, debug } = pluginState.config;
     
     if (!aiApiUrl || !aiApiKey) {
@@ -311,6 +339,24 @@ async function getAIResponse(question: string): Promise<string> {
             pluginState.logger.debug('开始调用AI API:', { aiApiUrl, aiModel, aiContextLength });
         }
         
+        // 获取消息历史
+        const history = getMessageHistory(groupId);
+        // 限制历史消息条数
+        const limitedHistory = history.slice(-aiContextLength);
+        
+        // 构建消息数组
+        const messages: Array<{ role: string; content: string }> = [
+            {
+                role: 'system',
+                content: aiSystemPrompt || '你是一个智能助手，帮助用户解答问题。',
+            },
+            ...limitedHistory,
+            {
+                role: 'user',
+                content: question,
+            },
+        ];
+        
         const response = await fetch(aiApiUrl, {
             method: 'POST',
             headers: {
@@ -319,18 +365,8 @@ async function getAIResponse(question: string): Promise<string> {
             },
             body: JSON.stringify({
                 model: aiModel,
-                messages: [
-                    {
-                        role: 'system',
-                        content: aiSystemPrompt || '你是一个智能助手，帮助用户解答问题。',
-                    },
-                    {
-                        role: 'user',
-                        content: question,
-                    },
-                ],
+                messages,
                 temperature: 0.7,
-                max_tokens: aiContextLength * 1024, // 转换为token数（1KB ≈ 1024 tokens）
             }),
         });
         
@@ -494,10 +530,15 @@ export async function handleMessage(ctx: NapCatPluginContext, event: OB11Message
         }
 
         // 调用AI API获取回复
-        const aiResponse = await getAIResponse(question);
+        const aiResponse = await getAIResponse(String(groupId), question);
 
         // 发送回复
         await sendReply(ctx, event, aiResponse);
+        
+        // 保存消息历史
+        addMessageToHistory(String(groupId), 'user', question);
+        addMessageToHistory(String(groupId), 'assistant', aiResponse);
+        
         pluginState.incrementProcessed();
     } catch (error) {
         pluginState.logger.error('处理消息时出错:', error);

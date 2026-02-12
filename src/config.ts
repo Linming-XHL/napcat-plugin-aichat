@@ -78,6 +78,6 @@ export function buildConfigSchema(ctx: NapCatPluginContext): PluginConfigSchema 
         // AI 系统提示词
         ctx.NapCatConfig.text('aiSystemPrompt', '系统提示词', '你是一个智能助手，帮助用户解答问题。', 'AI的系统提示词，用于定义AI的角色和行为'),
         // 上下文长度
-        ctx.NapCatConfig.number('aiContextLength', '上下文长度（KB）', 10, '上下文长度，范围1-128，用于控制AI的对话记忆')
+        ctx.NapCatConfig.number('aiContextLength', '上下文消息条数', 10, '上下文消息条数，范围2-30，用于控制AI的对话记忆')
     );
 }
