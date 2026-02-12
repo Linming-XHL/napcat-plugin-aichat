@@ -519,6 +519,10 @@ export async function handleMessage(ctx: NapCatPluginContext, event: OB11Message
         // 检查是否@了机器人
         if (!isAtBot(event)) return;
 
+        // 检查消息是否被其他插件处理过（通过检查消息中是否包含其他插件的特征）
+        // 这里可以根据实际情况添加更多检查逻辑
+        // 例如检查消息是否包含其他插件的命令前缀
+        
         // 提取用户的问题
         const question = extractQuestion(event);
         if (!question) return;
