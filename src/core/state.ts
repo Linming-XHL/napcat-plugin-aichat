@@ -47,6 +47,20 @@ function sanitizeConfig(raw: unknown): PluginConfig {
         // 支持从字符串解析主人QQ列表（逗号分隔）
         out.masterQqs = raw.masterQqs.split(',').map(qq => qq.trim()).filter(qq => qq);
     }
+    // 黑名单QQ列表清洗
+    if (Array.isArray(raw.blacklistQqs)) {
+        out.blacklistQqs = raw.blacklistQqs.filter((qq: unknown) => typeof qq === 'string');
+    } else if (typeof raw.blacklistQqs === 'string') {
+        // 支持从字符串解析黑名单QQ列表（逗号分隔）
+        out.blacklistQqs = raw.blacklistQqs.split(',').map(qq => qq.trim()).filter(qq => qq);
+    }
+    // 屏蔽词正则列表清洗
+    if (Array.isArray(raw.blockedPatterns)) {
+        out.blockedPatterns = raw.blockedPatterns.filter((pattern: unknown) => typeof pattern === 'string');
+    } else if (typeof raw.blockedPatterns === 'string') {
+        // 支持从字符串解析屏蔽词正则列表（逗号分隔）
+        out.blockedPatterns = raw.blockedPatterns.split(',').map(pattern => pattern.trim()).filter(pattern => pattern);
+    }
     // AI 提示词配置清洗
     if (typeof raw.aiSystemPrompt === 'string') out.aiSystemPrompt = raw.aiSystemPrompt;
     if (typeof raw.aiContextLength === 'number') {

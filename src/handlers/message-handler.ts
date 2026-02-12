@@ -519,6 +519,27 @@ export async function handleMessage(ctx: NapCatPluginContext, event: OB11Message
         // 检查是否@了机器人
         if (!isAtBot(event)) return;
 
+        // 检查发送者是否在黑名单中
+        if (pluginState.config.blacklistQqs.includes(String(userId))) {
+            pluginState.ctx.logger.debug(`用户 ${userId} 在黑名单中，忽略消息`);
+            return;
+        }
+
+        // 检查消息内容是否匹配屏蔽词正则表达式
+        if (pluginState.config.blockedPatterns.length > 0) {
+            const messageContent = rawMessage || '';
+            for (const pattern of pluginState.config.blockedPatterns) {
+                try {
+                    if (new RegExp(pattern).test(messageContent)) {
+                        pluginState.ctx.logger.debug(`消息包含屏蔽词模式 "${pattern}"，忽略消息`);
+                        return;
+                    }
+                } catch (error) {
+                    pluginState.ctx.logger.warn(`正则表达式 "${pattern}" 无效:`, error);
+                }
+            }
+        }
+
         // 检查消息是否被其他插件处理过（通过检查消息中是否包含其他插件的特征）
         // 这里可以根据实际情况添加更多检查逻辑
         // 例如检查消息是否包含其他插件的命令前缀

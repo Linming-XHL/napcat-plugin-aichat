@@ -34,6 +34,10 @@ export interface PluginConfig {
     rateLimitPerMinute: number;
     /** 主人QQ列表：额外配置的可以禁用或启用AI功能的QQ */
     masterQqs: string[];
+    /** 黑名单QQ列表：这些QQ发送的消息不会被AI回应 */
+    blacklistQqs: string[];
+    /** 屏蔽词正则表达式列表：包含这些模式的消息不会被AI回应 */
+    blockedPatterns: string[];
     /** AI 系统提示词 */
     aiSystemPrompt: string;
     /** 上下文消息条数，范围2-30 */

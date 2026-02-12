@@ -19,6 +19,8 @@ export const DEFAULT_CONFIG: PluginConfig = {
     aiModel: 'gpt-3.5-turbo',
     rateLimitPerMinute: 10,
     masterQqs: [],
+    blacklistQqs: [],
+    blockedPatterns: [],
     aiSystemPrompt: '你是一个智能助手，帮助用户解答问题。',
     aiContextLength: 10,
 };
@@ -69,6 +71,16 @@ export function buildConfigSchema(ctx: NapCatPluginContext): PluginConfigSchema 
         ctx.NapCatConfig.number('rateLimitPerMinute', '限频设置（次/分钟）', 10, '一分钟最大调用次数，-1 表示禁用'),
         // 主人QQ列表
         ctx.NapCatConfig.text('masterQqs', '主人QQ列表', '', '额外配置的可以禁用或启用AI功能的QQ，多个用逗号分隔'),
+        // 黑名单配置
+        ctx.NapCatConfig.html(`
+            <div style="padding: 16px; background: #f0f0f0; border-radius: 12px; margin: 20px 0;">
+                <h4 style="margin: 0 0 12px 0; font-size: 16px; font-weight: 600;">黑名单配置</h4>
+            </div>
+        `),
+        // 黑名单QQ列表
+        ctx.NapCatConfig.text('blacklistQqs', '黑名单QQ列表', '', '这些QQ发送的消息不会被AI回应，多个用逗号分隔'),
+        // 屏蔽词配置
+        ctx.NapCatConfig.text('blockedPatterns', '屏蔽词正则列表', '', '包含这些正则模式的消息不会被AI回应，多个用逗号分隔'),
         // AI 提示词配置
         ctx.NapCatConfig.html(`
             <div style="padding: 16px; background: #f0f0f0; border-radius: 12px; margin: 20px 0;">
