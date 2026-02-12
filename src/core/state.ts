@@ -201,13 +201,23 @@ class PluginState {
 
     // ==================== 配置管理 ====================
 
+    /** 配置文件名（独立保存，卸载插件时可选择保留） */
+    private readonly CONFIG_FILENAME = 'config.json';
+
+    /**
+     * 获取配置文件完整路径（保存在 dataPath 下）
+     */
+    private getConfigPath(): string {
+        return this.getDataFilePath(this.CONFIG_FILENAME);
+    }
+
     /**
      * 从磁盘加载配置
      */
     loadConfig(): void {
-        const configPath = this.ctx.configPath;
+        const configPath = this.getConfigPath();
         try {
-            if (configPath && fs.existsSync(configPath)) {
+            if (fs.existsSync(configPath)) {
                 const raw = JSON.parse(fs.readFileSync(configPath, 'utf-8'));
                 this.config = sanitizeConfig(raw);
                 // 加载统计信息
@@ -231,7 +241,7 @@ class PluginState {
      */
     saveConfig(): void {
         if (!this._ctx) return;
-        const configPath = this._ctx.configPath;
+        const configPath = this.getConfigPath();
         try {
             const configDir = path.dirname(configPath);
             if (!fs.existsSync(configDir)) {
