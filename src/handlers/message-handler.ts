@@ -299,7 +299,7 @@ function extractQuestion(event: OB11Message): string {
  * 调用AI API获取回复
  */
 async function getAIResponse(question: string): Promise<string> {
-    const { aiApiUrl, aiApiKey, aiModel } = pluginState.config;
+    const { aiApiUrl, aiApiKey, aiModel, aiSystemPrompt, aiContextLength } = pluginState.config;
     
     if (!aiApiUrl || !aiApiKey) {
         return '请先在控制台配置AI API地址和API Key';
@@ -317,7 +317,7 @@ async function getAIResponse(question: string): Promise<string> {
                 messages: [
                     {
                         role: 'system',
-                        content: '你是一个智能助手，帮助用户解答问题。',
+                        content: aiSystemPrompt || '你是一个智能助手，帮助用户解答问题。',
                     },
                     {
                         role: 'user',
@@ -325,6 +325,7 @@ async function getAIResponse(question: string): Promise<string> {
                     },
                 ],
                 temperature: 0.7,
+                max_tokens: aiContextLength * 1024, // 转换为token数（1KB ≈ 1024 tokens）
             }),
         });
         

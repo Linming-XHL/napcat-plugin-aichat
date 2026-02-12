@@ -34,6 +34,10 @@ export interface PluginConfig {
     rateLimitPerMinute: number;
     /** 主人QQ列表：额外配置的可以禁用或启用AI功能的QQ */
     masterQqs: string[];
+    /** AI 系统提示词 */
+    aiSystemPrompt: string;
+    /** 上下文长度（KB），范围1-128 */
+    aiContextLength: number;
 }
 
 /**

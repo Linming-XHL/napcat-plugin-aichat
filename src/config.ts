@@ -19,6 +19,8 @@ export const DEFAULT_CONFIG: PluginConfig = {
     aiModel: 'gpt-3.5-turbo',
     rateLimitPerMinute: 10,
     masterQqs: [],
+    aiSystemPrompt: '你是一个智能助手，帮助用户解答问题。',
+    aiContextLength: 10,
 };
 
 /**
@@ -66,6 +68,16 @@ export function buildConfigSchema(ctx: NapCatPluginContext): PluginConfigSchema 
         // 限频设置
         ctx.NapCatConfig.number('rateLimitPerMinute', '限频设置（次/分钟）', 10, '一分钟最大调用次数，-1 表示禁用'),
         // 主人QQ列表
-        ctx.NapCatConfig.text('masterQqs', '主人QQ列表', '', '额外配置的可以禁用或启用AI功能的QQ，多个用逗号分隔')
+        ctx.NapCatConfig.text('masterQqs', '主人QQ列表', '', '额外配置的可以禁用或启用AI功能的QQ，多个用逗号分隔'),
+        // AI 提示词配置
+        ctx.NapCatConfig.html(`
+            <div style="padding: 16px; background: #f0f0f0; border-radius: 12px; margin: 20px 0;">
+                <h4 style="margin: 0 0 12px 0; font-size: 16px; font-weight: 600;">AI 提示词配置</h4>
+            </div>
+        `),
+        // AI 系统提示词
+        ctx.NapCatConfig.text('aiSystemPrompt', '系统提示词', '你是一个智能助手，帮助用户解答问题。', 'AI的系统提示词，用于定义AI的角色和行为'),
+        // 上下文长度
+        ctx.NapCatConfig.number('aiContextLength', '上下文长度（KB）', 10, '上下文长度，范围1-128，用于控制AI的对话记忆')
     );
 }

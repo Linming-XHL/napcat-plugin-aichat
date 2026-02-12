@@ -47,6 +47,12 @@ function sanitizeConfig(raw: unknown): PluginConfig {
         // 支持从字符串解析主人QQ列表（逗号分隔）
         out.masterQqs = raw.masterQqs.split(',').map(qq => qq.trim()).filter(qq => qq);
     }
+    // AI 提示词配置清洗
+    if (typeof raw.aiSystemPrompt === 'string') out.aiSystemPrompt = raw.aiSystemPrompt;
+    if (typeof raw.aiContextLength === 'number') {
+        // 限制上下文长度范围1-128
+        out.aiContextLength = Math.max(1, Math.min(128, raw.aiContextLength));
+    }
 
     // 群配置清洗
     if (isObject(raw.groupConfigs)) {
