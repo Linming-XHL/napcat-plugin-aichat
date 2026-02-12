@@ -302,10 +302,13 @@ async function getAIResponse(question: string): Promise<string> {
     const { aiApiUrl, aiApiKey, aiModel, aiSystemPrompt, aiContextLength } = pluginState.config;
     
     if (!aiApiUrl || !aiApiKey) {
+        pluginState.logger.error('AI API配置不完整: aiApiUrl=' + !!aiApiUrl + ', aiApiKey=' + !!aiApiKey);
         return '请先在控制台配置AI API地址和API Key';
     }
     
     try {
+        pluginState.logger.debug('开始调用AI API:', { aiApiUrl, aiModel, aiContextLength });
+        
         const response = await fetch(aiApiUrl, {
             method: 'POST',
             headers: {
@@ -329,16 +332,33 @@ async function getAIResponse(question: string): Promise<string> {
             }),
         });
         
-        const data = await response.json();
+        pluginState.logger.debug('AI API响应状态:', response.status);
         
-        if (data.choices && data.choices.length > 0) {
-            return data.choices[0].message.content;
+        if (!response.ok) {
+            const errorText = await response.text();
+            pluginState.logger.error('AI API请求失败:', { status: response.status, statusText: response.statusText, body: errorText });
+            return `AI API请求失败 (${response.status}): ${response.statusText}`;
         }
         
+        const data = await response.json();
+        pluginState.logger.debug('AI API响应数据:', JSON.stringify(data));
+        
+        if (data.error) {
+            pluginState.logger.error('AI API返回错误:', data.error);
+            return `AI API错误: ${data.error.message || JSON.stringify(data.error)}`;
+        }
+        
+        if (data.choices && data.choices.length > 0) {
+            const reply = data.choices[0].message.content;
+            pluginState.logger.debug('AI回复成功，长度:', reply.length);
+            return reply;
+        }
+        
+        pluginState.logger.error('AI API响应格式异常:', data);
         return 'AI回复失败，请稍后再试';
     } catch (error) {
         pluginState.logger.error('调用AI API失败:', error);
-        return 'AI回复失败，请稍后再试';
+        return `AI回复失败: ${error instanceof Error ? error.message : String(error)}`;
     }
 }
 
