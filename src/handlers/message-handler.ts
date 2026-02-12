@@ -97,21 +97,21 @@ function checkRateLimit(groupId: string): boolean {
 // ==================== 消息历史管理 ====================
 
 /** 消息历史记录 key: `${groupId}`, value: 消息数组 */
-const messageHistoryMap = new Map<string, Array<{ role: string; content: string }>>();
+const messageHistoryMap = new Map<string, Array<{ role: string; content: string; userId?: string; nickname?: string }>>();
 
 /**
  * 获取指定群的消息历史
  */
-function getMessageHistory(groupId: string): Array<{ role: string; content: string }> {
+function getMessageHistory(groupId: string): Array<{ role: string; content: string; userId?: string; nickname?: string }> {
     return messageHistoryMap.get(groupId) || [];
 }
 
 /**
  * 添加消息到历史记录
  */
-function addMessageToHistory(groupId: string, role: string, content: string): void {
+function addMessageToHistory(groupId: string, role: string, content: string, userId?: string, nickname?: string): void {
     const history = getMessageHistory(groupId);
-    history.push({ role, content });
+    history.push({ role, content, userId, nickname });
     messageHistoryMap.set(groupId, history);
 }
 
@@ -326,7 +326,7 @@ function extractQuestion(event: OB11Message): string {
 /**
  * 调用AI API获取回复
  */
-async function getAIResponse(groupId: string, question: string): Promise<string> {
+async function getAIResponse(groupId: string, question: string, userId?: string, nickname?: string): Promise<string> {
     const { aiApiUrl, aiApiKey, aiModel, aiSystemPrompt, aiContextLength, debug } = pluginState.config;
     
     if (!aiApiUrl || !aiApiKey) {
@@ -344,16 +344,35 @@ async function getAIResponse(groupId: string, question: string): Promise<string>
         // 限制历史消息条数
         const limitedHistory = history.slice(-aiContextLength);
         
+        // 格式化历史消息，包含用户信息
+        const formattedMessages = limitedHistory.map(msg => {
+            if (msg.role === 'user') {
+                const userInfo = msg.userId && msg.nickname ? `[${msg.userId}, ${msg.nickname}]` : '';
+                return {
+                    role: msg.role,
+                    content: userInfo ? `${userInfo}: ${msg.content}` : msg.content,
+                };
+            }
+            return {
+                role: msg.role,
+                content: msg.content,
+            };
+        });
+        
+        // 格式化当前用户问题
+        const currentUserInfo = userId && nickname ? `[${userId}, ${nickname}]` : '';
+        const formattedQuestion = currentUserInfo ? `${currentUserInfo}: ${question}` : question;
+        
         // 构建消息数组
         const messages: Array<{ role: string; content: string }> = [
             {
                 role: 'system',
                 content: aiSystemPrompt || '你是一个智能助手，帮助用户解答问题。',
             },
-            ...limitedHistory,
+            ...formattedMessages,
             {
                 role: 'user',
-                content: question,
+                content: formattedQuestion,
             },
         ];
         
@@ -554,14 +573,18 @@ export async function handleMessage(ctx: NapCatPluginContext, event: OB11Message
             return;
         }
 
+        // 获取用户昵称
+        const sender = event.sender as Record<string, unknown>;
+        const nickname = sender?.nickname ? String(sender.nickname) : String(userId);
+
         // 调用AI API获取回复
-        const aiResponse = await getAIResponse(String(groupId), question);
+        const aiResponse = await getAIResponse(String(groupId), question, String(userId), nickname);
 
         // 发送回复
         await sendReply(ctx, event, aiResponse);
         
         // 保存消息历史
-        addMessageToHistory(String(groupId), 'user', question);
+        addMessageToHistory(String(groupId), 'user', question, String(userId), nickname);
         addMessageToHistory(String(groupId), 'assistant', aiResponse);
         
         pluginState.incrementProcessed();
