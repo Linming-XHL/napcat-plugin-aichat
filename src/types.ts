@@ -24,7 +24,16 @@ export interface PluginConfig {
     cooldownSeconds: number;
     /** 按群的单独配置 */
     groupConfigs: Record<string, GroupConfig>;
-    // TODO: 在这里添加你的插件配置项
+    /** AI API 地址 */
+    aiApiUrl: string;
+    /** AI API Key */
+    aiApiKey: string;
+    /** AI 模型名称 */
+    aiModel: string;
+    /** 限频设置：一分钟最大调用次数，-1 表示禁用 */
+    rateLimitPerMinute: number;
+    /** 主人QQ列表：额外配置的可以禁用或启用AI功能的QQ */
+    masterQqs: string[];
 }
 
 /**
@@ -33,7 +42,10 @@ export interface PluginConfig {
 export interface GroupConfig {
     /** 是否启用此群的功能 */
     enabled?: boolean;
-    // TODO: 在这里添加群级别的配置项
+    /** 是否启用此群的AI功能 */
+    aiEnabled?: boolean;
+    /** 群级别限频设置：一分钟最大调用次数，-1 表示禁用 */
+    rateLimitPerMinute?: number;
 }
 
 // ==================== API 响应 ====================

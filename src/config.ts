@@ -13,7 +13,12 @@ export const DEFAULT_CONFIG: PluginConfig = {
     commandPrefix: '#cmd',
     cooldownSeconds: 60,
     groupConfigs: {},
-    // TODO: 在这里添加你的默认配置值
+    // AI聊天相关配置
+    aiApiUrl: 'https://api.openai.com/v1/chat/completions',
+    aiApiKey: '',
+    aiModel: 'gpt-3.5-turbo',
+    rateLimitPerMinute: 10,
+    masterQqs: [],
 };
 
 /**
@@ -34,8 +39,8 @@ export function buildConfigSchema(ctx: NapCatPluginContext): PluginConfigSchema 
         // 插件信息头部
         ctx.NapCatConfig.html(`
             <div style="padding: 16px; background: #FB7299; border-radius: 12px; margin-bottom: 20px; color: white;">
-                <h3 style="margin: 0 0 6px 0; font-size: 18px; font-weight: 600;">插件模板</h3>
-                <p style="margin: 0; font-size: 13px; opacity: 0.85;">NapCat 插件开发模板，请根据需要修改配置</p>
+                <h3 style="margin: 0 0 6px 0; font-size: 18px; font-weight: 600;">AI聊天插件</h3>
+                <p style="margin: 0; font-size: 13px; opacity: 0.85;">为NapCat添加AI聊天功能，支持@触发和群聊限频</p>
             </div>
         `),
         // 全局开关
@@ -45,7 +50,22 @@ export function buildConfigSchema(ctx: NapCatPluginContext): PluginConfigSchema 
         // 命令前缀
         ctx.NapCatConfig.text('commandPrefix', '命令前缀', '#cmd', '触发命令的前缀，默认为 #cmd'),
         // 冷却时间
-        ctx.NapCatConfig.number('cooldownSeconds', '冷却时间（秒）', 60, '同一命令请求冷却时间，0 表示不限制')
-        // TODO: 在这里添加你的配置项
+        ctx.NapCatConfig.number('cooldownSeconds', '冷却时间（秒）', 60, '同一命令请求冷却时间，0 表示不限制'),
+        // AI API 配置
+        ctx.NapCatConfig.html(`
+            <div style="padding: 16px; background: #f0f0f0; border-radius: 12px; margin: 20px 0;">
+                <h4 style="margin: 0 0 12px 0; font-size: 16px; font-weight: 600;">AI API 配置</h4>
+            </div>
+        `),
+        // AI API 地址
+        ctx.NapCatConfig.text('aiApiUrl', 'API 地址', 'https://api.openai.com/v1/chat/completions', 'AI服务的API地址'),
+        // AI API Key
+        ctx.NapCatConfig.text('aiApiKey', 'API Key', '', 'AI服务的API密钥'),
+        // AI 模型名称
+        ctx.NapCatConfig.text('aiModel', '模型名称', 'gpt-3.5-turbo', '使用的AI模型名称'),
+        // 限频设置
+        ctx.NapCatConfig.number('rateLimitPerMinute', '限频设置（次/分钟）', 10, '一分钟最大调用次数，-1 表示禁用'),
+        // 主人QQ列表
+        ctx.NapCatConfig.text('masterQqs', '主人QQ列表', '', '额外配置的可以禁用或启用AI功能的QQ，多个用逗号分隔')
     );
 }

@@ -36,19 +36,30 @@ function sanitizeConfig(raw: unknown): PluginConfig {
     if (typeof raw.commandPrefix === 'string') out.commandPrefix = raw.commandPrefix;
     if (typeof raw.cooldownSeconds === 'number') out.cooldownSeconds = raw.cooldownSeconds;
 
+    // AI聊天相关配置清洗
+    if (typeof raw.aiApiUrl === 'string') out.aiApiUrl = raw.aiApiUrl;
+    if (typeof raw.aiApiKey === 'string') out.aiApiKey = raw.aiApiKey;
+    if (typeof raw.aiModel === 'string') out.aiModel = raw.aiModel;
+    if (typeof raw.rateLimitPerMinute === 'number') out.rateLimitPerMinute = raw.rateLimitPerMinute;
+    if (Array.isArray(raw.masterQqs)) {
+        out.masterQqs = raw.masterQqs.filter((qq: unknown) => typeof qq === 'string');
+    } else if (typeof raw.masterQqs === 'string') {
+        // 支持从字符串解析主人QQ列表（逗号分隔）
+        out.masterQqs = raw.masterQqs.split(',').map(qq => qq.trim()).filter(qq => qq);
+    }
+
     // 群配置清洗
     if (isObject(raw.groupConfigs)) {
         for (const [groupId, groupConfig] of Object.entries(raw.groupConfigs)) {
             if (isObject(groupConfig)) {
                 const cfg: GroupConfig = {};
                 if (typeof groupConfig.enabled === 'boolean') cfg.enabled = groupConfig.enabled;
-                // TODO: 在这里添加你的群配置项清洗
+                if (typeof groupConfig.aiEnabled === 'boolean') cfg.aiEnabled = groupConfig.aiEnabled;
+                if (typeof groupConfig.rateLimitPerMinute === 'number') cfg.rateLimitPerMinute = groupConfig.rateLimitPerMinute;
                 out.groupConfigs[groupId] = cfg;
             }
         }
     }
-
-    // TODO: 在这里添加你的配置项清洗逻辑
 
     return out;
 }

@@ -46,6 +46,54 @@ function setCooldown(groupId: number | string, command: string): void {
     cooldownMap.set(`${groupId}:${command}`, Date.now() + cdSeconds * 1000);
 }
 
+// ==================== 限频管理 ====================
+
+/** 限频记录 key: `${groupId}`, value: { count: number, resetTime: number } */
+const rateLimitMap = new Map<string, { count: number; resetTime: number }>();
+
+/**
+ * 检查是否超过限频
+ * @returns true 表示超过限频，false 表示未超过
+ */
+function checkRateLimit(groupId: string): boolean {
+    const rateLimit = pluginState.config.rateLimitPerMinute ?? 10;
+    if (rateLimit === -1) return false; // 禁用限频
+
+    const now = Date.now();
+    const key = groupId;
+    const rateLimitInfo = rateLimitMap.get(key);
+
+    if (!rateLimitInfo) {
+        // 首次使用，初始化限频记录
+        rateLimitMap.set(key, {
+            count: 1,
+            resetTime: now + 60 * 1000, // 1分钟后重置
+        });
+        return false;
+    }
+
+    // 检查是否需要重置计数
+    if (now >= rateLimitInfo.resetTime) {
+        rateLimitMap.set(key, {
+            count: 1,
+            resetTime: now + 60 * 1000,
+        });
+        return false;
+    }
+
+    // 检查是否超过限频
+    if (rateLimitInfo.count >= rateLimit) {
+        return true;
+    }
+
+    // 更新计数
+    rateLimitMap.set(key, {
+        count: rateLimitInfo.count + 1,
+        resetTime: rateLimitInfo.resetTime,
+    });
+    return false;
+}
+
 // ==================== 消息发送工具 ====================
 
 /**
@@ -182,6 +230,117 @@ export function isAdmin(event: OB11Message): boolean {
     return role === 'admin' || role === 'owner';
 }
 
+/**
+ * 检查是否是主人QQ
+ * @returns true 表示是主人QQ，false 表示不是
+ */
+function isMaster(userId: string): boolean {
+    const masterQqs = pluginState.config.masterQqs || [];
+    return masterQqs.includes(userId);
+}
+
+/**
+ * 检查是否有权限管理AI功能
+ * @returns true 表示有权限，false 表示没有
+ */
+function hasAIManagePermission(event: OB11Message): boolean {
+    // 检查是否是群主或管理员
+    if (isAdmin(event)) return true;
+    
+    // 检查是否是主人QQ
+    if (event.user_id) {
+        return isMaster(String(event.user_id));
+    }
+    
+    return false;
+}
+
+// ==================== AI 聊天核心逻辑 ====================
+
+/**
+ * 检查消息是否@了机器人
+ * @returns true 表示@了机器人，false 表示没有
+ */
+function isAtBot(event: OB11Message): boolean {
+    if (!event.message) return false;
+    
+    // 检查消息段是否包含@机器人的部分
+    const messageSegments = Array.isArray(event.message) ? event.message : [];
+    const selfId = pluginState.selfId;
+    
+    return messageSegments.some(segment => {
+        if (segment.type === 'at' && segment.data && segment.data.qq) {
+            // 检查是否@了机器人自己
+            return String(segment.data.qq) === selfId;
+        }
+        return false;
+    });
+}
+
+/**
+ * 提取用户的问题（去除@机器人的部分）
+ */
+function extractQuestion(event: OB11Message): string {
+    if (!event.message) return '';
+    
+    const messageSegments = Array.isArray(event.message) ? event.message : [];
+    let question = '';
+    
+    messageSegments.forEach(segment => {
+        if (segment.type === 'text' && segment.data && segment.data.text) {
+            question += segment.data.text;
+        }
+    });
+    
+    return question.trim();
+}
+
+/**
+ * 调用AI API获取回复
+ */
+async function getAIResponse(question: string): Promise<string> {
+    const { aiApiUrl, aiApiKey, aiModel } = pluginState.config;
+    
+    if (!aiApiUrl || !aiApiKey) {
+        return '请先在控制台配置AI API地址和API Key';
+    }
+    
+    try {
+        const response = await fetch(aiApiUrl, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${aiApiKey}`,
+            },
+            body: JSON.stringify({
+                model: aiModel,
+                messages: [
+                    {
+                        role: 'system',
+                        content: '你是一个智能助手，帮助用户解答问题。',
+                    },
+                    {
+                        role: 'user',
+                        content: question,
+                    },
+                ],
+                temperature: 0.7,
+            }),
+        });
+        
+        const data = await response.json();
+        
+        if (data.choices && data.choices.length > 0) {
+            return data.choices[0].message.content;
+        }
+        
+        return 'AI回复失败，请稍后再试';
+    } catch (error) {
+        pluginState.logger.error('调用AI API失败:', error);
+        return 'AI回复失败，请稍后再试';
+    }
+}
+
 // ==================== 消息处理主函数 ====================
 
 /**
@@ -197,12 +356,37 @@ export async function handleMessage(ctx: NapCatPluginContext, event: OB11Message
 
         pluginState.ctx.logger.debug(`收到消息: ${rawMessage} | 类型: ${messageType}`);
 
+        // 只允许群聊使用
+        if (messageType !== 'group' || !groupId) return;
+
         // 群消息：检查该群是否启用
-        if (messageType === 'group' && groupId) {
-            if (!pluginState.isGroupEnabled(String(groupId))) return;
+        if (!pluginState.isGroupEnabled(String(groupId))) return;
+
+        // 检查群是否启用了AI功能
+        const groupConfig = pluginState.config.groupConfigs[String(groupId)];
+        if (groupConfig && groupConfig.aiEnabled === false) return;
+
+        // 检查是否@了机器人
+        if (!isAtBot(event)) return;
+
+        // 提取用户的问题
+        const question = extractQuestion(event);
+        if (!question) return;
+
+        // 检查限频
+        if (checkRateLimit(String(groupId))) {
+            await sendReply(ctx, event, '当前请求过于频繁，请稍后再试');
+            return;
         }
 
-        // 检查命令前缀
+        // 调用AI API获取回复
+        const aiResponse = await getAIResponse(question);
+
+        // 发送回复
+        await sendReply(ctx, event, aiResponse);
+        pluginState.incrementProcessed();
+
+        // 检查命令前缀（保留原有命令功能）
         const prefix = pluginState.config.commandPrefix || '#cmd';
         if (!rawMessage.startsWith(prefix)) return;
 
@@ -210,7 +394,6 @@ export async function handleMessage(ctx: NapCatPluginContext, event: OB11Message
         const args = rawMessage.slice(prefix.length).trim().split(/\s+/);
         const subCommand = args[0]?.toLowerCase() || '';
 
-        // TODO: 在这里实现你的命令处理逻辑
         switch (subCommand) {
             case 'help': {
                 const helpText = [
@@ -218,6 +401,8 @@ export async function handleMessage(ctx: NapCatPluginContext, event: OB11Message
                     `${prefix} help - 显示帮助信息`,
                     `${prefix} ping - 测试连通性`,
                     `${prefix} status - 查看运行状态`,
+                    `${prefix} ai enable - 启用AI功能`,
+                    `${prefix} ai disable - 禁用AI功能`,
                 ].join('\n');
                 await sendReply(ctx, event, helpText);
                 break;
@@ -250,8 +435,35 @@ export async function handleMessage(ctx: NapCatPluginContext, event: OB11Message
                 break;
             }
 
+            case 'ai': {
+                // 处理AI相关命令
+                const aiSubCommand = args[1]?.toLowerCase() || '';
+                switch (aiSubCommand) {
+                    case 'enable':
+                    case 'disable': {
+                        // 检查权限
+                        if (!hasAIManagePermission(event)) {
+                            await sendReply(ctx, event, '你没有权限管理AI功能');
+                            return;
+                        }
+
+                        // 切换AI功能状态
+                        const groupIdStr = String(groupId);
+                        const newAiEnabled = aiSubCommand === 'enable';
+
+                        // 更新群配置并保存
+                        pluginState.updateGroupConfig(groupIdStr, { aiEnabled: newAiEnabled });
+
+                        // 发送回复
+                        await sendReply(ctx, event, `AI功能已${newAiEnabled ? '启用' : '禁用'}`);
+                        break;
+                    }
+                }
+                break;
+            }
+
             default: {
-                // TODO: 在这里处理你的主要命令逻辑
+                // 其他命令处理
                 break;
             }
         }

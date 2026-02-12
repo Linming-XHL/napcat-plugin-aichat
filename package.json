@@ -1,24 +1,25 @@
 {
-  "name": "napcat-plugin-template",
-  "plugin": "插件模板",
+  "name": "napcat-plugin-aichat",
+  "plugin": "AI 聊天插件",
   "version": "1.0.0",
   "type": "module",
   "main": "index.mjs",
-  "description": "NapCat 插件开发模板 - 快速开始你的插件开发",
-  "author": "Your Name",
+  "description": "NapCat 插件 - AI 聊天插件",
+  "author": "LinmingXHL",
   "license": "MIT",
   "keywords": [
     "napcat",
     "plugin",
     "qq",
-    "template"
+    "aichat"
   ],
   "napcat": {
     "tags": [
-      "工具"
+      "工具",
+      "AI"
     ],
     "minVersion": "4.14.0",
-    "homepage": ""
+    "homepage": "https://github.com/Linming-XHL/napcat-plugin-aichat"
   },
   "dependencies": {
     "napcat-types": "0.0.16"
