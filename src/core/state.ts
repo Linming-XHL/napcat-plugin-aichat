@@ -37,9 +37,14 @@ function sanitizeConfig(raw: unknown): PluginConfig {
     if (typeof raw.cooldownSeconds === 'number') out.cooldownSeconds = raw.cooldownSeconds;
 
     // AI聊天相关配置清洗
+    if (typeof raw.aiServiceType === 'string' && (raw.aiServiceType === 'OpenAI' || raw.aiServiceType === 'TencentCloud')) {
+        out.aiServiceType = raw.aiServiceType;
+    }
     if (typeof raw.aiApiUrl === 'string') out.aiApiUrl = raw.aiApiUrl;
     if (typeof raw.aiApiKey === 'string') out.aiApiKey = raw.aiApiKey;
     if (typeof raw.aiModel === 'string') out.aiModel = raw.aiModel;
+    if (typeof raw.tencentBotAppKey === 'string') out.tencentBotAppKey = raw.tencentBotAppKey;
+    if (typeof raw.tencentVisitorBizIdPrefix === 'string') out.tencentVisitorBizIdPrefix = raw.tencentVisitorBizIdPrefix;
     if (typeof raw.rateLimitPerMinute === 'number') out.rateLimitPerMinute = raw.rateLimitPerMinute;
     if (Array.isArray(raw.masterQqs)) {
         out.masterQqs = raw.masterQqs.filter((qq: unknown) => typeof qq === 'string');

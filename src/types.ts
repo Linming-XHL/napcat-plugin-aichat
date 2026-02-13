@@ -24,6 +24,8 @@ export interface PluginConfig {
     cooldownSeconds: number;
     /** 按群的单独配置 */
     groupConfigs: Record<string, GroupConfig>;
+    /** AI服务类型：OpenAI 或 TencentCloud */
+    aiServiceType: 'OpenAI' | 'TencentCloud';
     /** AI API 地址 */
     aiApiUrl: string;
     /** AI API Key */
@@ -42,6 +44,10 @@ export interface PluginConfig {
     aiSystemPrompt: string;
     /** 上下文消息条数，范围2-30 */
     aiContextLength: number;
+    /** 腾讯云AI应用密钥 */
+    tencentBotAppKey: string;
+    /** 腾讯云AI访客ID前缀 */
+    tencentVisitorBizIdPrefix: string;
 }
 
 /**

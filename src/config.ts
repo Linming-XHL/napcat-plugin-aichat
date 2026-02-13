@@ -13,10 +13,16 @@ export const DEFAULT_CONFIG: PluginConfig = {
     commandPrefix: '#cmd',
     cooldownSeconds: 60,
     groupConfigs: {},
-    // AI聊天相关配置
+    // AI服务类型
+    aiServiceType: 'OpenAI',
+    // OpenAI配置
     aiApiUrl: 'https://api.openai.com/v1/chat/completions',
     aiApiKey: '',
     aiModel: 'gpt-3.5-turbo',
+    // 腾讯云AI配置
+    tencentBotAppKey: '',
+    tencentVisitorBizIdPrefix: 'napcat_',
+    // 其他配置
     rateLimitPerMinute: 10,
     masterQqs: [],
     blacklistQqs: [],
@@ -55,18 +61,39 @@ export function buildConfigSchema(ctx: NapCatPluginContext): PluginConfigSchema 
         ctx.NapCatConfig.text('commandPrefix', '命令前缀', '#cmd', '触发命令的前缀，默认为 #cmd'),
         // 冷却时间
         ctx.NapCatConfig.number('cooldownSeconds', '冷却时间（秒）', 60, '同一命令请求冷却时间，0 表示不限制'),
-        // AI API 配置
+        // AI服务类型选择
         ctx.NapCatConfig.html(`
             <div style="padding: 16px; background: #f0f0f0; border-radius: 12px; margin: 20px 0;">
-                <h4 style="margin: 0 0 12px 0; font-size: 16px; font-weight: 600;">AI API 配置</h4>
+                <h4 style="margin: 0 0 12px 0; font-size: 16px; font-weight: 600;">AI服务类型选择</h4>
+            </div>
+        `),
+        // AI服务类型
+        ctx.NapCatConfig.select('aiServiceType', 'AI服务类型', [
+            { label: 'OpenAI', value: 'OpenAI' },
+            { label: '腾讯云AI', value: 'TencentCloud' }
+        ], 'OpenAI', '选择使用的AI服务提供商'),
+        // OpenAI配置
+        ctx.NapCatConfig.html(`
+            <div style="padding: 16px; background: #f0f0f0; border-radius: 12px; margin: 20px 0;">
+                <h4 style="margin: 0 0 12px 0; font-size: 16px; font-weight: 600;">OpenAI配置</h4>
             </div>
         `),
         // AI API 地址
-        ctx.NapCatConfig.text('aiApiUrl', 'API 地址', 'https://api.openai.com/v1/chat/completions', 'AI服务的API地址'),
+        ctx.NapCatConfig.text('aiApiUrl', 'API 地址', 'https://api.openai.com/v1/chat/completions', 'OpenAI API地址'),
         // AI API Key
-        ctx.NapCatConfig.text('aiApiKey', 'API Key', '', 'AI服务的API密钥'),
+        ctx.NapCatConfig.text('aiApiKey', 'API Key', '', 'OpenAI API密钥'),
         // AI 模型名称
-        ctx.NapCatConfig.text('aiModel', '模型名称', 'gpt-3.5-turbo', '使用的AI模型名称'),
+        ctx.NapCatConfig.text('aiModel', '模型名称', 'gpt-3.5-turbo', '使用的OpenAI模型名称'),
+        // 腾讯云AI配置
+        ctx.NapCatConfig.html(`
+            <div style="padding: 16px; background: #f0f0f0; border-radius: 12px; margin: 20px 0;">
+                <h4 style="margin: 0 0 12px 0; font-size: 16px; font-weight: 600;">腾讯云AI配置</h4>
+            </div>
+        `),
+        // 腾讯云AI应用密钥
+        ctx.NapCatConfig.text('tencentBotAppKey', '应用密钥', '', '腾讯云智能体开发平台的AppKey（需要先创建应用并发布）'),
+        // 腾讯云AI访客ID前缀
+        ctx.NapCatConfig.text('tencentVisitorBizIdPrefix', '访客ID前缀', 'napcat_', '腾讯云AI访客ID前缀，用于标识不同用户'),
         // 限频设置
         ctx.NapCatConfig.number('rateLimitPerMinute', '限频设置（次/分钟）', 10, '一分钟最大调用次数，-1 表示禁用'),
         // 主人QQ列表

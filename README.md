@@ -79,9 +79,23 @@ pnpm run build
 
 在 NapCat WebUI 中找到本插件，进入配置页面，设置以下参数：
 
-- **API 地址**: AI服务的API地址，默认为 `https://api.openai.com/v1/chat/completions`
-- **API Key**: AI服务的API密钥
-- **模型名称**: 使用的AI模型名称，默认为 `gpt-3.5-turbo`
+#### 4.1 AI服务类型选择
+
+- **AI服务类型**: 选择使用的AI服务提供商，可选 `OpenAI` 或 `腾讯云AI`
+
+#### 4.2 OpenAI配置
+
+- **API 地址**: OpenAI API地址，默认为 `https://api.openai.com/v1/chat/completions`
+- **API Key**: OpenAI API密钥
+- **模型名称**: 使用的OpenAI模型名称，默认为 `gpt-3.5-turbo`
+
+#### 4.3 腾讯云AI配置
+
+- **应用密钥**: 腾讯云智能体开发平台的AppKey（需要先创建应用并发布）
+- **访客ID前缀**: 腾讯云AI访客ID前缀，用于标识不同用户，默认为 `napcat_`
+
+#### 4.4 通用配置
+
 - **系统提示词**: AI的系统提示词，用于定义AI的角色和行为，默认为 `你是一个智能助手，帮助用户解答问题。`
 - **上下文消息条数**: 上下文消息条数，范围2-30，用于控制AI的对话记忆，默认为 10条
 - **限频设置**: 一分钟最大调用次数，-1 表示禁用

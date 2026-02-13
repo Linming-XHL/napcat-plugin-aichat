@@ -283,6 +283,16 @@ function hasAIManagePermission(event: OB11Message): boolean {
     return false;
 }
 
+// ==================== 工具函数 ====================
+
+/**
+ * 生成唯一ID
+ * @returns 唯一ID字符串
+ */
+function generateId(): string {
+    return Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
+}
+
 // ==================== AI 聊天核心逻辑 ====================
 
 /**
@@ -327,6 +337,19 @@ function extractQuestion(event: OB11Message): string {
  * 调用AI API获取回复
  */
 async function getAIResponse(groupId: string, question: string, userId?: string, nickname?: string): Promise<string> {
+    const { aiServiceType } = pluginState.config;
+    
+    if (aiServiceType === 'TencentCloud') {
+        return getTencentAIResponse(groupId, question, userId, nickname);
+    } else {
+        return getOpenAIResponse(groupId, question, userId, nickname);
+    }
+}
+
+/**
+ * 调用OpenAI API获取回复
+ */
+async function getOpenAIResponse(groupId: string, question: string, userId?: string, nickname?: string): Promise<string> {
     const { aiApiUrl, aiApiKey, aiModel, aiSystemPrompt, aiContextLength, debug } = pluginState.config;
     
     if (!aiApiUrl || !aiApiKey) {
@@ -424,6 +447,210 @@ async function getAIResponse(groupId: string, question: string, userId?: string,
         pluginState.logger.error('调用AI API失败:', error);
         return `AI回复失败: ${error instanceof Error ? error.message : String(error)}`;
     }
+}
+
+/**
+ * 调用腾讯云AI API获取回复（使用WebSocket）
+ */
+async function getTencentAIResponse(groupId: string, question: string, userId?: string, nickname?: string): Promise<string> {
+    const { tencentBotAppKey, tencentVisitorBizIdPrefix, aiSystemPrompt, debug } = pluginState.config;
+    
+    if (!tencentBotAppKey) {
+        pluginState.logger.error('腾讯云AI配置不完整: tencentBotAppKey为空');
+        return '请先在控制台配置腾讯云AI应用密钥';
+    }
+    
+    try {
+        if (debug) {
+            pluginState.logger.debug('开始调用腾讯云AI API:', { tencentVisitorBizIdPrefix });
+        }
+        
+        // 生成唯一ID
+        const requestId = generateId();
+        const sessionId = `napcat_${groupId}_${userId || 'unknown'}`;
+        
+        // 构建访客ID
+        const visitorBizId = `${tencentVisitorBizIdPrefix}${userId || 'unknown'}`;
+        
+        if (debug) {
+            pluginState.logger.debug('腾讯云AI请求参数:', { requestId, sessionId, visitorBizId });
+        }
+        
+        // 获取WebSocket Token
+        const token = await getTencentAIWebSocketToken(tencentBotAppKey, visitorBizId);
+        
+        if (debug) {
+            pluginState.logger.debug('获取腾讯云AI WebSocket Token成功');
+        }
+        
+        // 建立WebSocket连接并获取回复
+        const reply = await connectToTencentAIWebSocket(token, requestId, sessionId, question, aiSystemPrompt);
+        
+        if (debug) {
+            pluginState.logger.debug('腾讯云AI回复成功，长度:', reply.length);
+        }
+        
+        return reply;
+    } catch (error) {
+        pluginState.logger.error('调用腾讯云AI API失败:', error);
+        return `腾讯云AI回复失败: ${error instanceof Error ? error.message : String(error)}`;
+    }
+}
+
+/**
+ * 获取腾讯云AI WebSocket Token
+ * @param appKey 腾讯云AI应用密钥
+ * @param visitorBizId 访客ID
+ * @returns WebSocket Token
+ */
+async function getTencentAIWebSocketToken(appKey: string, visitorBizId: string): Promise<string> {
+    try {
+        const response = await fetch('https://api.lke.tencentcloud.com/v1/qbot/chat/wstoken', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${appKey}`,
+            },
+            body: JSON.stringify({
+                visitor_biz_id: visitorBizId,
+            }),
+        });
+        
+        if (!response.ok) {
+            const errorText = await response.text();
+            throw new Error(`获取WebSocket Token失败: ${response.status} ${response.statusText} - ${errorText}`);
+        }
+        
+        const data = await response.json();
+        
+        if (!data.data || !data.data.token) {
+            throw new Error('获取WebSocket Token失败: 响应中没有token字段');
+        }
+        
+        return data.data.token;
+    } catch (error) {
+        throw new Error(`获取WebSocket Token失败: ${error instanceof Error ? error.message : String(error)}`);
+    }
+}
+
+/**
+ * 连接腾讯云AI WebSocket并获取回复
+ * @param token WebSocket Token
+ * @param requestId 请求ID
+ * @param sessionId 会话ID
+ * @param question 问题
+ * @param systemPrompt 系统提示词
+ * @returns AI回复
+ */
+async function connectToTencentAIWebSocket(token: string, requestId: string, sessionId: string, question: string, systemPrompt?: string): Promise<string> {
+    const { debug } = pluginState.config;
+    return new Promise((resolve, reject) => {
+        try {
+            // 构建WebSocket连接URL
+            const wsUrl = `wss://wss.lke.tencentcloud.com/v1/qbot/chat/conn/?EIO=4&transport=websocket`;
+            
+            // 创建WebSocket连接
+            const ws = new WebSocket(wsUrl);
+            
+            let replyContent = '';
+            let isConnected = false;
+            let isAuthenticated = false;
+            let isCompleted = false;
+            
+            // 设置超时
+            const timeout = setTimeout(() => {
+                ws.close();
+                reject(new Error('腾讯云AI WebSocket连接超时'));
+            }, 30000);
+            
+            ws.onopen = () => {
+                isConnected = true;
+                pluginState.logger.debug('腾讯云AI WebSocket连接已打开');
+            };
+            
+            ws.onmessage = (event) => {
+                try {
+                    const message = event.data;
+                    
+                    if (debug) {
+                        pluginState.logger.debug('收到腾讯云AI WebSocket消息:', message);
+                    }
+                    
+                    // 处理Socket.IO消息
+                    if (message === '2') {
+                        // 心跳包，回复3
+                        ws.send('3');
+                    } else if (message.startsWith('0')) {
+                        // 连接建立成功，发送认证消息
+                        if (isConnected && !isAuthenticated) {
+                            isAuthenticated = true;
+                            // 发送token认证
+                            ws.send(`40{"token":"${token}"}`);
+                        }
+                    } else if (message.startsWith('42')) {
+                        // 处理业务消息
+                        const data = JSON.parse(message.substring(2));
+                        const eventType = data[0];
+                        const eventData = data[1];
+                        
+                        if (eventType === 'send' && eventData.payload && eventData.payload.is_from_self) {
+                            // 消息已被服务器接收
+                            pluginState.logger.debug('腾讯云AI消息已被接收');
+                        } else if (eventType === 'reply' && eventData.payload) {
+                            // 处理回复消息
+                            const payload = eventData.payload;
+                            if (payload.content) {
+                                replyContent += payload.content;
+                            }
+                            if (payload.is_finish) {
+                                // 回复完成
+                                isCompleted = true;
+                                clearTimeout(timeout);
+                                ws.close();
+                                resolve(replyContent);
+                            }
+                        } else if (eventType === 'error' && eventData.payload) {
+                            // 处理错误消息
+                            const errorMsg = eventData.payload.message || '未知错误';
+                            clearTimeout(timeout);
+                            ws.close();
+                            reject(new Error(`腾讯云AI错误: ${errorMsg}`));
+                        }
+                    }
+                } catch (error) {
+                    pluginState.logger.error('处理腾讯云AI WebSocket消息失败:', error);
+                }
+            };
+            
+            ws.onclose = () => {
+                clearTimeout(timeout);
+                if (!isCompleted) {
+                    reject(new Error('腾讯云AI WebSocket连接已关闭'));
+                }
+            };
+            
+            ws.onerror = (error) => {
+                clearTimeout(timeout);
+                reject(new Error(`腾讯云AI WebSocket连接错误: ${error instanceof Error ? error.message : String(error)}`));
+            };
+            
+            // 发送消息
+            setTimeout(() => {
+                if (isAuthenticated) {
+                    const messageData = {
+                        request_id: requestId,
+                        session_id: sessionId,
+                        content: question,
+                        system_role: systemPrompt || '你是一个智能助手，帮助用户解答问题。',
+                    };
+                    ws.send(`42["send",{"payload":${JSON.stringify(messageData)}}]`);
+                }
+            }, 1000);
+            
+        } catch (error) {
+            reject(new Error(`连接腾讯云AI WebSocket失败: ${error instanceof Error ? error.message : String(error)}`));
+        }
+    });
 }
 
 // ==================== 消息处理主函数 ====================
