@@ -6,6 +6,7 @@
 - 新增腾讯云AI接入，使用腾讯云智能体开发平台的HTTP SSE接口
 - 新增OpenAI配置项，包括API地址、API Key和模型名称
 - 新增腾讯云AI配置项，包括应用密钥和访客ID前缀
+- 修复腾讯云AI API地址，使用国际版地址 `https://wss.lke.tencentcloud.com/v1/qbot/chat/sse`
 - 新增AI系统提示词配置，允许自定义AI的角色和行为
 - 新增上下文消息条数配置，范围2-30，用于控制AI的对话记忆
 - 新增消息历史管理功能，支持多轮对话

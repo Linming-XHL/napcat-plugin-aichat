@@ -498,7 +498,7 @@ async function getTencentAIResponse(
         pluginState.logger.debug('腾讯云AI请求参数:', { sessionId, visitorBizId, contentLength: question.length });
     }
     
-    const response = await fetch('https://wss.lke.cloud.tencent.com/v1/qbot/chat/sse', {
+    const response = await fetch('https://wss.lke.tencentcloud.com/v1/qbot/chat/sse', {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json',
