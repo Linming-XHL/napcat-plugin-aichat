@@ -110,6 +110,11 @@ function getMessageHistory(groupId: string): Array<{ role: string; content: stri
  * 添加消息到历史记录
  */
 function addMessageToHistory(groupId: string, role: string, content: string, userId?: string, nickname?: string): void {
+    // 只添加content不为null且不为空的消息
+    if (content == null || content.trim() === '') {
+        return;
+    }
+    
     const history = getMessageHistory(groupId);
     history.push({ role, content, userId, nickname });
     messageHistoryMap.set(groupId, history);
@@ -368,19 +373,21 @@ async function getOpenAIResponse(groupId: string, question: string, userId?: str
         const limitedHistory = history.slice(-aiContextLength);
         
         // 格式化历史消息，包含用户信息
-        const formattedMessages = limitedHistory.map(msg => {
-            if (msg.role === 'user') {
-                const userInfo = msg.userId && msg.nickname ? `[${msg.userId}, ${msg.nickname}]` : '';
+        const formattedMessages = limitedHistory
+            .filter(msg => msg.content != null && msg.content.trim() !== '') // 过滤掉content为null或空的消息
+            .map(msg => {
+                if (msg.role === 'user') {
+                    const userInfo = msg.userId && msg.nickname ? `[${msg.userId}, ${msg.nickname}]` : '';
+                    return {
+                        role: msg.role,
+                        content: userInfo ? `${userInfo}: ${msg.content}` : msg.content,
+                    };
+                }
                 return {
                     role: msg.role,
-                    content: userInfo ? `${userInfo}: ${msg.content}` : msg.content,
+                    content: msg.content,
                 };
-            }
-            return {
-                role: msg.role,
-                content: msg.content,
-            };
-        });
+            });
         
         // 格式化当前用户问题
         const currentUserInfo = userId && nickname ? `[${userId}, ${nickname}]` : '';

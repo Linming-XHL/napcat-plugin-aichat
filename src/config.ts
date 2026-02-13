@@ -70,7 +70,7 @@ export function buildConfigSchema(ctx: NapCatPluginContext): PluginConfigSchema 
         // AI服务类型
         ctx.NapCatConfig.select('aiServiceType', 'AI服务类型', [
             { label: 'OpenAI', value: 'OpenAI' },
-            { label: '腾讯云AI', value: 'TencentCloud' }
+            { label: '腾讯云AI（国际版，可能出现BUG）', value: 'TencentCloud' }
         ], 'OpenAI', '选择使用的AI服务提供商'),
         // OpenAI配置
         ctx.NapCatConfig.html(`
