@@ -24,18 +24,12 @@ export interface PluginConfig {
     cooldownSeconds: number;
     /** 按群的单独配置 */
     groupConfigs: Record<string, GroupConfig>;
-    /** AI服务类型：openai 或 tencent */
-    aiServiceType: 'openai' | 'tencent';
-    /** OpenAI API 地址 */
+    /** AI API 地址 */
     aiApiUrl: string;
-    /** OpenAI API Key */
+    /** AI API Key */
     aiApiKey: string;
-    /** OpenAI 模型名称 */
+    /** AI 模型名称 */
     aiModel: string;
-    /** 腾讯云AI 应用密钥 */
-    tencentBotAppKey: string;
-    /** 腾讯云AI 访客ID前缀 */
-    tencentVisitorBizIdPrefix: string;
     /** 限频设置：一分钟最大调用次数，-1 表示禁用 */
     rateLimitPerMinute: number;
     /** 主人QQ列表：额外配置的可以禁用或启用AI功能的QQ */

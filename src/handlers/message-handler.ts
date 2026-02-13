@@ -324,259 +324,106 @@ function extractQuestion(event: OB11Message): string {
 }
 
 /**
- * 生成唯一ID
- */
-function generateId(): string {
-    return Date.now().toString(36) + Math.random().toString(36).substr(2);
-}
-
-/**
  * 调用AI API获取回复
  */
 async function getAIResponse(groupId: string, question: string, userId?: string, nickname?: string): Promise<string> {
-    const { aiServiceType, aiApiUrl, aiApiKey, aiModel, aiSystemPrompt, aiContextLength, tencentBotAppKey, tencentVisitorBizIdPrefix, debug } = pluginState.config;
+    const { aiApiUrl, aiApiKey, aiModel, aiSystemPrompt, aiContextLength, debug } = pluginState.config;
+    
+    if (!aiApiUrl || !aiApiKey) {
+        pluginState.logger.error('AI API配置不完整: aiApiUrl=' + !!aiApiUrl + ', aiApiKey=' + !!aiApiKey);
+        return '请先在控制台配置AI API地址和API Key';
+    }
     
     try {
-        if (aiServiceType === 'openai') {
-            return await getOpenAIResponse(groupId, question, userId, nickname, { aiApiUrl, aiApiKey, aiModel, aiSystemPrompt, aiContextLength, debug });
-        } else if (aiServiceType === 'tencent') {
-            return await getTencentAIResponse(question, userId, nickname, { tencentBotAppKey, tencentVisitorBizIdPrefix, aiSystemPrompt, debug });
-        } else {
-            pluginState.logger.error('未知的AI服务类型:', aiServiceType);
-            return '请先在控制台配置正确的AI服务类型';
+        if (debug) {
+            pluginState.logger.debug('开始调用AI API:', { aiApiUrl, aiModel, aiContextLength });
         }
+        
+        // 获取消息历史
+        const history = getMessageHistory(groupId);
+        // 限制历史消息条数
+        const limitedHistory = history.slice(-aiContextLength);
+        
+        // 格式化历史消息，包含用户信息
+        const formattedMessages = limitedHistory.map(msg => {
+            if (msg.role === 'user') {
+                const userInfo = msg.userId && msg.nickname ? `[${msg.userId}, ${msg.nickname}]` : '';
+                return {
+                    role: msg.role,
+                    content: userInfo ? `${userInfo}: ${msg.content}` : msg.content,
+                };
+            }
+            return {
+                role: msg.role,
+                content: msg.content,
+            };
+        });
+        
+        // 格式化当前用户问题
+        const currentUserInfo = userId && nickname ? `[${userId}, ${nickname}]` : '';
+        const formattedQuestion = currentUserInfo ? `${currentUserInfo}: ${question}` : question;
+        
+        // 构建消息数组
+        const messages: Array<{ role: string; content: string }> = [
+            {
+                role: 'system',
+                content: aiSystemPrompt || '你是一个智能助手，帮助用户解答问题。',
+            },
+            ...formattedMessages,
+            {
+                role: 'user',
+                content: formattedQuestion,
+            },
+        ];
+        
+        const response = await fetch(aiApiUrl, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${aiApiKey}`,
+            },
+            body: JSON.stringify({
+                model: aiModel,
+                messages,
+                temperature: 0.7,
+            }),
+        });
+        
+        if (debug) {
+            pluginState.logger.debug('AI API响应状态:', response.status);
+        }
+        
+        if (!response.ok) {
+            const errorText = await response.text();
+            pluginState.logger.error('AI API请求失败:', { status: response.status, statusText: response.statusText, body: errorText });
+            return `AI API请求失败 (${response.status}): ${response.statusText}`;
+        }
+        
+        const data = await response.json();
+        
+        if (debug) {
+            pluginState.logger.debug('AI API响应数据:', JSON.stringify(data));
+        }
+        
+        if (data.error) {
+            pluginState.logger.error('AI API返回错误:', data.error);
+            return `AI API错误: ${data.error.message || JSON.stringify(data.error)}`;
+        }
+        
+        if (data.choices && data.choices.length > 0) {
+            const reply = data.choices[0].message.content;
+            if (debug) {
+                pluginState.logger.debug('AI回复成功，长度:', reply.length);
+            }
+            return reply;
+        }
+        
+        pluginState.logger.error('AI API响应格式异常:', data);
+        return 'AI回复失败，请稍后再试';
     } catch (error) {
         pluginState.logger.error('调用AI API失败:', error);
         return `AI回复失败: ${error instanceof Error ? error.message : String(error)}`;
     }
-}
-
-/**
- * 调用OpenAI API获取回复
- */
-async function getOpenAIResponse(
-    groupId: string,
-    question: string,
-    userId?: string,
-    nickname?: string,
-    config: { aiApiUrl: string; aiApiKey: string; aiModel: string; aiSystemPrompt: string; aiContextLength: number; debug: boolean }
-): Promise<string> {
-    const { aiApiUrl, aiApiKey, aiModel, aiSystemPrompt, aiContextLength, debug } = config;
-    
-    if (!aiApiUrl || !aiApiKey) {
-        pluginState.logger.error('OpenAI API配置不完整: aiApiUrl=' + !!aiApiUrl + ', aiApiKey=' + !!aiApiKey);
-        return '请先在控制台配置OpenAI API地址和API Key';
-    }
-    
-    if (debug) {
-        pluginState.logger.debug('开始调用OpenAI API:', { aiApiUrl, aiModel, aiContextLength });
-    }
-    
-    // 获取消息历史
-    const history = getMessageHistory(groupId);
-    // 限制历史消息条数
-    const limitedHistory = history.slice(-aiContextLength);
-    
-    // 格式化历史消息，包含用户信息
-    const formattedMessages = limitedHistory.map(msg => {
-        if (msg.role === 'user') {
-            const userInfo = msg.userId && msg.nickname ? `[${msg.userId}, ${msg.nickname}]` : '';
-            return {
-                role: msg.role,
-                content: userInfo ? `${userInfo}: ${msg.content}` : msg.content,
-            };
-        }
-        return {
-            role: msg.role,
-            content: msg.content,
-        };
-    });
-    
-    // 格式化当前用户问题
-    const currentUserInfo = userId && nickname ? `[${userId}, ${nickname}]` : '';
-    const formattedQuestion = currentUserInfo ? `${currentUserInfo}: ${question}` : question;
-    
-    // 构建消息数组
-    const messages: Array<{ role: string; content: string }> = [
-        {
-            role: 'system',
-            content: aiSystemPrompt || '你是一个智能助手，帮助用户解答问题。',
-        },
-        ...formattedMessages,
-        {
-            role: 'user',
-            content: formattedQuestion,
-        },
-    ];
-    
-    const response = await fetch(aiApiUrl, {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${aiApiKey}`,
-        },
-        body: JSON.stringify({
-            model: aiModel,
-            messages,
-            temperature: 0.7,
-        }),
-    });
-    
-    if (debug) {
-        pluginState.logger.debug('OpenAI API响应状态:', response.status);
-    }
-    
-    if (!response.ok) {
-        const errorText = await response.text();
-        pluginState.logger.error('OpenAI API请求失败:', { status: response.status, statusText: response.statusText, body: errorText });
-        return `OpenAI API请求失败 (${response.status}): ${response.statusText}`;
-    }
-    
-    const data = await response.json();
-    
-    if (debug) {
-        pluginState.logger.debug('OpenAI API响应数据:', JSON.stringify(data));
-    }
-    
-    if (data.error) {
-        pluginState.logger.error('OpenAI API返回错误:', data.error);
-        return `OpenAI API错误: ${data.error.message || JSON.stringify(data.error)}`;
-    }
-    
-    if (data.choices && data.choices.length > 0) {
-        const reply = data.choices[0].message.content;
-        if (debug) {
-            pluginState.logger.debug('OpenAI回复成功，长度:', reply.length);
-        }
-        return reply;
-    }
-    
-    pluginState.logger.error('OpenAI API响应格式异常:', data);
-    return 'AI回复失败，请稍后再试';
-}
-
-/**
- * 调用腾讯云AI API获取回复
- */
-async function getTencentAIResponse(
-    question: string,
-    userId?: string,
-    nickname?: string,
-    config: { tencentBotAppKey: string; tencentVisitorBizIdPrefix: string; aiSystemPrompt: string; debug: boolean }
-): Promise<string> {
-    const { tencentBotAppKey, tencentVisitorBizIdPrefix, aiSystemPrompt, debug } = config;
-    
-    if (!tencentBotAppKey) {
-        pluginState.logger.error('腾讯云AI配置不完整: tencentBotAppKey为空');
-        return '请先在控制台配置腾讯云AI应用密钥';
-    }
-    
-    if (debug) {
-        pluginState.logger.debug('开始调用腾讯云AI API');
-    }
-    
-    // 生成会话ID和请求ID
-    const sessionId = generateId();
-    const requestId = generateId();
-    
-    // 构建访客ID
-    const visitorBizId = tencentVisitorBizIdPrefix + (userId || generateId());
-    
-    // 构建请求参数
-    const requestBody = {
-        session_id: sessionId,
-        bot_app_key: tencentBotAppKey,
-        visitor_biz_id: visitorBizId,
-        content: question,
-        request_id: requestId,
-        streaming_throttle: 10,
-        stream: 'disable', // 非流式传输
-        system_role: aiSystemPrompt || '你是一个智能助手，帮助用户解答问题。'
-    };
-    
-    if (debug) {
-        pluginState.logger.debug('腾讯云AI请求参数:', { sessionId, visitorBizId, contentLength: question.length });
-    }
-    
-    const response = await fetch('https://wss.lke.tencentcloud.com/v1/qbot/chat/sse', {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(requestBody),
-    });
-    
-    if (debug) {
-        pluginState.logger.debug('腾讯云AI API响应状态:', response.status);
-    }
-    
-    if (!response.ok) {
-        const errorText = await response.text();
-        pluginState.logger.error('腾讯云AI API请求失败:', { status: response.status, statusText: response.statusText, body: errorText });
-        return `腾讯云AI API请求失败 (${response.status}): ${response.statusText}`;
-    }
-    
-    // 读取响应流
-    const reader = response.body?.getReader();
-    if (!reader) {
-        pluginState.logger.error('腾讯云AI API响应流获取失败');
-        return '腾讯云AI API响应流获取失败';
-    }
-    
-    let fullResponse = '';
-    let aiReply = '';
-    
-    try {
-        while (true) {
-            const { done, value } = await reader.read();
-            if (done) break;
-            
-            const chunk = new TextDecoder('utf-8').decode(value);
-            fullResponse += chunk;
-            
-            // 解析SSE事件
-            const lines = chunk.split('\n');
-            for (const line of lines) {
-                if (line.startsWith('data: ')) {
-                    const data = line.substring(6);
-                    if (data) {
-                        try {
-                            const eventData = JSON.parse(data);
-                            if (eventData.type === 'reply' && eventData.payload) {
-                                const payload = eventData.payload;
-                                if (payload.content) {
-                                    aiReply = payload.content;
-                                }
-                                if (payload.is_final) {
-                                    // 找到最终回复
-                                    if (debug) {
-                                        pluginState.logger.debug('腾讯云AI回复成功，长度:', aiReply.length);
-                                    }
-                                    return aiReply;
-                                }
-                            } else if (eventData.type === 'error' && eventData.error) {
-                                const error = eventData.error;
-                                pluginState.logger.error('腾讯云AI API返回错误:', error);
-                                return `腾讯云AI API错误: ${error.message || JSON.stringify(error)}`;
-                            }
-                        } catch (parseError) {
-                            // 忽略解析错误，继续处理
-                        }
-                    }
-                }
-            }
-        }
-    } finally {
-        reader.releaseLock();
-    }
-    
-    // 如果没有找到最终回复，返回收集到的内容
-    if (aiReply) {
-        return aiReply;
-    }
-    
-    pluginState.logger.error('腾讯云AI API响应格式异常，未找到回复内容');
-    return 'AI回复失败，请稍后再试';
 }
 
 // ==================== 消息处理主函数 ====================

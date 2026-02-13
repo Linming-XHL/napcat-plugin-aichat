@@ -36,17 +36,10 @@ function sanitizeConfig(raw: unknown): PluginConfig {
     if (typeof raw.commandPrefix === 'string') out.commandPrefix = raw.commandPrefix;
     if (typeof raw.cooldownSeconds === 'number') out.cooldownSeconds = raw.cooldownSeconds;
 
-    // AI服务类型清洗
-    if (typeof raw.aiServiceType === 'string' && (raw.aiServiceType === 'openai' || raw.aiServiceType === 'tencent')) {
-        out.aiServiceType = raw.aiServiceType;
-    }
-    // OpenAI相关配置清洗
+    // AI聊天相关配置清洗
     if (typeof raw.aiApiUrl === 'string') out.aiApiUrl = raw.aiApiUrl;
     if (typeof raw.aiApiKey === 'string') out.aiApiKey = raw.aiApiKey;
     if (typeof raw.aiModel === 'string') out.aiModel = raw.aiModel;
-    // 腾讯云AI相关配置清洗
-    if (typeof raw.tencentBotAppKey === 'string') out.tencentBotAppKey = raw.tencentBotAppKey;
-    if (typeof raw.tencentVisitorBizIdPrefix === 'string') out.tencentVisitorBizIdPrefix = raw.tencentVisitorBizIdPrefix;
     if (typeof raw.rateLimitPerMinute === 'number') out.rateLimitPerMinute = raw.rateLimitPerMinute;
     if (Array.isArray(raw.masterQqs)) {
         out.masterQqs = raw.masterQqs.filter((qq: unknown) => typeof qq === 'string');
